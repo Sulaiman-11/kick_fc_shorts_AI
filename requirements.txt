@@ -1,3 +1,9 @@
 streamlit
 moviepy
-Pillow
+imageio
+imageio-ffmpeg
+decorator
+tqdm
+requests
+numpy
+pillow
