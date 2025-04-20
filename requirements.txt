@@ -8,3 +8,4 @@ requests
 numpy
 pillow
 openai-whisper
+gTTS
