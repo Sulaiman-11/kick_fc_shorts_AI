@@ -1,69 +1,79 @@
 import streamlit as st
-import whisper
-from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip, AudioFileClip, ColorClip
+from moviepy.editor import (
+    VideoFileClip,
+    CompositeVideoClip,
+    AudioFileClip,
+    ColorClip,
+    ImageClip,
+)
 from gtts import gTTS
 import tempfile
 import os
+from PIL import Image, ImageDraw, ImageFont
+import numpy as np
 
 st.set_page_config(page_title="KICK_FC Shorts AI", layout="centered")
-st.title("🎬 KICK_FC AI Shorts Generator")
-st.markdown("Create YouTube Shorts from long videos or scripts — instantly, with style.")
 
-option = st.radio("Choose your content type:", ("📹 Long Video", "📝 Script/Text"))
+st.title("🎬 KICK_FC Shorts AI")
 
-if option == "📹 Long Video":
-    uploaded_file = st.file_uploader("Upload your long video (MP4)", type=["mp4"])
+option = st.radio("Choose an option:", ["Script to Video", "Video to Short"])
 
-    if uploaded_file is not None:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_video:
-            temp_video.write(uploaded_file.read())
-            video_path = temp_video.name
+if option == "Script to Video":
+    script = st.text_area("✍️ Enter your script:")
+    if st.button("🎥 Generate Video"):
+        if script:
+            with st.spinner("Generating video..."):
+                # Convert text to speech
+                tts = gTTS(text=script, lang="en")
+                audio_path = os.path.join(tempfile.gettempdir(), "temp_audio.mp3")
+                tts.save(audio_path)
 
-        st.video(video_path)
-        st.write("⚙️ Transcribing...")
+                # Create a background color clip
+                background = ColorClip(size=(1080, 1920), color=(0, 0, 0), duration=5)
 
-        model = whisper.load_model("base")
-        result = model.transcribe(video_path)
-        transcription = result["text"]
+                # Load font
+                font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"  # Or any default font path
+                font_size = 60
 
-        st.success("✅ Transcription done!")
-        st.text_area("📝 Transcript:", transcription, height=100)
+                # Create caption image
+                font = ImageFont.truetype(font_path, font_size)
+                text_img = Image.new("RGBA", (1000, 400), (0, 0, 0, 0))
+                draw = ImageDraw.Draw(text_img)
+                draw.text((10, 10), script, font=font, fill="white")
 
-        # Trim to 60s max
-        video = VideoFileClip(video_path)
-        short_clip = video.subclip(0, min(60, video.duration))
+                # Convert PIL image to MoviePy clip
+                text_clip = (
+                    ImageClip(np.array(text_img))
+                    .set_duration(5)
+                    .set_position("center")
+                )
 
-        # Add subtitle (first 60 characters)
-        subtitle = TextClip(transcription[:60] + "...", fontsize=60, color='white', font="Arial-Bold")
-        subtitle = subtitle.set_position('bottom').set_duration(short_clip.duration)
+                # Add audio
+                audio = AudioFileClip(audio_path).subclip(0, 5)
 
-        final_clip = CompositeVideoClip([short_clip, subtitle])
+                # Combine everything
+                video = CompositeVideoClip([background, text_clip])
+                video = video.set_audio(audio)
 
-        output_path = os.path.join(tempfile.gettempdir(), "kickfc_short_video.mp4")
-        final_clip.write_videofile(output_path, codec="libx264", audio_codec="aac")
+                # Export
+                output_path = os.path.join(tempfile.gettempdir(), "output.mp4")
+                video.write_videofile(output_path, fps=24)
 
-        with open(output_path, "rb") as file:
-            st.download_button("📥 Download Your Short", file, file_name="kickfc_short_video.mp4")
+                # Show in app
+                st.video(output_path)
+        else:
+            st.warning("Please enter a script.")
 
-elif option == "📝 Script/Text":
-    script = st.text_area("✍️ Enter your script (max ~60 seconds worth):", height=150)
+elif option == "Video to Short":
+    uploaded_video = st.file_uploader("📹 Upload your video", type=["mp4", "mov"])
+    if uploaded_video:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp:
+            temp.write(uploaded_video.read())
+            temp_path = temp.name
 
-    if st.button("🎥 Generate Video") and script:
-        tts = gTTS(script)
-        audio_path = os.path.join(tempfile.gettempdir(), "tts.mp3")
-        tts.save(audio_path)
+        with st.spinner("Trimming video..."):
+            clip = VideoFileClip(temp_path).subclip(0, 15)
+            output_path = os.path.join(tempfile.gettempdir(), "short_video.mp4")
+            clip.write_videofile(output_path, fps=24)
 
-        audio = AudioFileClip(audio_path)
-        duration = audio.duration
-
-        background = ColorClip(size=(1080, 1920), color=(0, 0, 0), duration=duration)
-        caption = TextClip(script, fontsize=60, color='white', size=(1000, None), method='pillow')
-        caption = caption.set_duration(duration).set_position("center")
-
-        final = CompositeVideoClip([background, caption.set_start(0)]).set_audio(audio)
-
-        output_path = os.path.join(tempfile.gettempdir(), "kickfc_text_short.mp4")
-        final.write_videofile(output_path, fps=24)
-
-        with open(output_path, "rb") as f:
-            st.download_button("📥 Download Short", f, file_name="kickfc_text_short.mp4")
+        st.video(output_path)
