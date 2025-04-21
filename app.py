@@ -57,7 +57,7 @@ elif option == "📝 Script/Text":
         duration = audio.duration
 
         background = ColorClip(size=(1080, 1920), color=(0, 0, 0), duration=duration)
-        caption = TextClip(script, fontsize=60, color='white', size=(1000, None), method='caption')
+        caption = TextClip(script, fontsize=60, color='white', size=(1000, None), method='label')
         caption = caption.set_duration(duration).set_position("center")
 
         final = CompositeVideoClip([background, caption.set_start(0)]).set_audio(audio)
